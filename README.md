@@ -90,6 +90,7 @@ Upload, download, and manage files on the badge using mpremote (official MicroPy
 - Uses `mpremote` for reliable file operations
 - Won't reset the device or turn off the display
 - **Supports glob patterns** for batch downloads (`*`, `?` wildcards)
+- **Supports recursive directory operations** with `-r` flag
 - Automatic directory creation for downloads
 
 ```bash
@@ -109,8 +110,14 @@ uv run badge_file_manager.py download /apps/chat.py chat.py
 uv run badge_file_manager.py download '/apps/*.py' ./files/
 uv run badge_file_manager.py download '/apps/user?.py' ./files/
 
+# Download entire directory recursively
+uv run badge_file_manager.py download -r /apps ./local_apps/
+
 # Upload a file to badge
 uv run badge_file_manager.py upload local_file.py /remote_file.py
+
+# Upload entire directory recursively
+uv run badge_file_manager.py upload -r ./my_app /apps/my_app/
 
 # Delete a file
 uv run badge_file_manager.py rm /path/to/file.py
@@ -163,7 +170,10 @@ uv run badge.py ls /apps
 # Read the main.py file
 uv run badge.py cat /main.py
 
-# Download all apps from the badge
+# Backup all apps from the badge
+uv run badge.py download -r /apps ./backup/
+
+# Download all Python files using glob patterns
 uv run badge.py download '/apps/*.py' ./files/
 
 # Download specific user apps only
@@ -173,6 +183,9 @@ uv run badge.py download '/apps/user?.py' ./files/
 # 1. Write your app locally as myapp.py
 # 2. Upload it: uv run badge.py upload myapp.py /apps/userA.py
 # 3. Restart the badge (Ctrl+D in REPL)
+
+# Deploy a complete application directory
+uv run badge.py upload -r ./my_badge_app /apps/my_badge_app/
 
 # Monitor badge activity with logging
 uv run badge.py monitor badge_activity.log

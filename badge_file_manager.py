@@ -97,38 +97,60 @@ def read_file(filepath):
     mpremote_cmd('fs', 'cat', f':{filepath}')
     return True
 
-def upload_file(local_path, remote_path):
-    """Upload a file to the badge"""
+def upload_file(local_path, remote_path, recursive=False):
+    """Upload a file or directory to the badge"""
     if not os.path.exists(local_path):
         print(f"Error: Local file '{local_path}' not found")
         return False
     
-    print(f"Uploading: {local_path} -> {remote_path}")
-    success = mpremote_cmd('fs', 'cp', local_path, f':{remote_path}')
+    print(f"Uploading: {local_path} -> {remote_path}{' (recursive)' if recursive else ''}")
+    
+    # Build command with recursive flag if needed
+    if recursive:
+        success = mpremote_cmd('fs', 'cp', '-r', local_path, f':{remote_path}')
+    else:
+        success = mpremote_cmd('fs', 'cp', local_path, f':{remote_path}')
     
     if success:
-        print("✓ Upload successful!")
+        if os.path.isdir(local_path):
+            file_count = sum(len(files) for _, _, files in os.walk(local_path))
+            print(f"✓ Upload successful! {file_count} files uploaded")
+        else:
+            print("✓ Upload successful!")
     else:
         print("✗ Upload failed!")
     
     return success
 
-def download_file(remote_path, local_path):
-    """Download a file or files from the badge (supports globs)"""
+def download_file(remote_path, local_path, recursive=False):
+    """Download a file or files from the badge (supports globs and recursive)"""
     # Check if remote_path contains wildcards
     if '*' in remote_path or '?' in remote_path:
         return download_glob(remote_path, local_path)
     
-    print(f"Downloading: {remote_path} -> {local_path}")
-    success = mpremote_cmd('fs', 'cp', f':{remote_path}', local_path)
+    print(f"Downloading: {remote_path} -> {local_path}{' (recursive)' if recursive else ''}")
+    
+    # Build command with recursive flag if needed
+    if recursive:
+        success = mpremote_cmd('fs', 'cp', '-r', f':{remote_path}', local_path)
+    else:
+        success = mpremote_cmd('fs', 'cp', f':{remote_path}', local_path)
     
     if success:
-        # Show file info
+        # Show info
         if os.path.exists(local_path):
-            size = os.path.getsize(local_path)
-            with open(local_path, 'r') as f:
-                lines = len(f.readlines())
-            print(f"✓ Download successful! {size} bytes ({lines} lines) saved to: {local_path}")
+            if os.path.isdir(local_path):
+                # Count files in directory
+                file_count = sum(len(files) for _, _, files in os.walk(local_path))
+                print(f"✓ Download successful! {file_count} files downloaded to: {local_path}")
+            else:
+                size = os.path.getsize(local_path)
+                try:
+                    with open(local_path, 'r') as f:
+                        lines = len(f.readlines())
+                    print(f"✓ Download successful! {size} bytes ({lines} lines) saved to: {local_path}")
+                except:
+                    print(f"✓ Download successful! {size} bytes saved to: {local_path}")
         else:
             print("✓ Download completed")
     else:
@@ -191,14 +213,17 @@ def main():
         print("Badge File Manager for Supercon 2025")
         print("Powered by mpremote (official MicroPython tool)")
         print("\nUsage:")
-        print(f"  {sys.argv[0]} ls [path]                - List files")
-        print(f"  {sys.argv[0]} cat <file>               - Read file")
-        print(f"  {sys.argv[0]} download <remote> <local> - Download file(s)")
-        print(f"  {sys.argv[0]} upload <local> <remote>  - Upload file")
-        print(f"  {sys.argv[0]} rm <file>                - Delete file")
-        print("\nGlob patterns supported for download:")
-        print(f"  {sys.argv[0]} download '/apps/*.py' ./files/")
-        print(f"  {sys.argv[0]} download '/apps/user?.py' ./files/")
+        print(f"  {sys.argv[0]} ls [path]                   - List files")
+        print(f"  {sys.argv[0]} cat <file>                  - Read file")
+        print(f"  {sys.argv[0]} download [-r] <remote> <local> - Download file(s)")
+        print(f"  {sys.argv[0]} upload [-r] <local> <remote>   - Upload file(s)")
+        print(f"  {sys.argv[0]} rm <file>                   - Delete file")
+        print("\nOptions:")
+        print(f"  -r, --recursive   Recursively copy directories")
+        print("\nExamples:")
+        print(f"  {sys.argv[0]} download '/apps/*.py' ./files/       # Glob patterns")
+        print(f"  {sys.argv[0]} download -r /apps ./local_apps/       # Recursive directory")
+        print(f"  {sys.argv[0]} upload -r ./my_app /apps/my_app/      # Upload directory")
         return 1
     
     command = sys.argv[1]
@@ -215,17 +240,33 @@ def main():
             read_file(sys.argv[2])
             
         elif command == 'download':
-            if len(sys.argv) < 4:
+            # Check for -r flag
+            recursive = False
+            args = sys.argv[2:]
+            if '-r' in args or '--recursive' in args:
+                recursive = True
+                args = [a for a in args if a not in ['-r', '--recursive']]
+            
+            if len(args) < 2:
                 print("Error: Need remote and local paths")
                 return 1
-            success = download_file(sys.argv[2], sys.argv[3])
+            
+            success = download_file(args[0], args[1], recursive=recursive)
             return 0 if success else 1
             
         elif command == 'upload':
-            if len(sys.argv) < 4:
+            # Check for -r flag
+            recursive = False
+            args = sys.argv[2:]
+            if '-r' in args or '--recursive' in args:
+                recursive = True
+                args = [a for a in args if a not in ['-r', '--recursive']]
+            
+            if len(args) < 2:
                 print("Error: Need local and remote paths")
                 return 1
-            success = upload_file(sys.argv[2], sys.argv[3])
+            
+            success = upload_file(args[0], args[1], recursive=recursive)
             return 0 if success else 1
             
         elif command == 'rm':

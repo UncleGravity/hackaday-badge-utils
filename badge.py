@@ -14,18 +14,18 @@ Supercon 2025 Badge Tool
 Usage: uv run badge.py <command> [args...]
 
 Commands:
-  info                     - Show badge system information
-  monitor [logfile]        - Monitor real-time output
-  repl                     - Interactive Python REPL
-  exec '<code>'            - Execute Python code
+  info                        - Show badge system information
+  monitor [logfile]           - Monitor real-time output
+  repl                        - Interactive Python REPL
+  exec '<code>'               - Execute Python code
   
-  ls [path]                - List files
-  cat <file>               - Read file contents
-  download <remote> <local> - Download file from badge
-  upload <local> <remote>  - Upload file to badge
-  rm <file>                - Delete file
+  ls [path]                   - List files
+  cat <file>                  - Read file contents
+  download [-r] <remote> <local> - Download file(s) from badge
+  upload [-r] <local> <remote>   - Upload file(s) to badge
+  rm <file>                   - Delete file
   
-  help                     - Show this help
+  help                        - Show this help
 
 Examples:
   uv run badge.py info
@@ -36,7 +36,9 @@ Examples:
   uv run badge.py cat /main.py
   uv run badge.py download /apps/chat.py chat.py
   uv run badge.py download '/apps/*.py' ./files/
+  uv run badge.py download -r /apps ./local_apps/
   uv run badge.py upload myapp.py /apps/userA.py
+  uv run badge.py upload -r ./my_app /apps/my_app/
 
 Quick Info:
   Device: ESP32-S3 @ 240MHz
