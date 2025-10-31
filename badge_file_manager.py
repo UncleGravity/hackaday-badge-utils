@@ -92,10 +92,39 @@ def list_files(path='/'):
 def read_file(filepath):
     """Read and display a file from the badge"""
     print(f"Reading file: {filepath}")
+    
+    # First, check if file is binary by reading first few bytes
+    code = f"""
+try:
+    with open({repr(filepath)}, 'rb') as f:
+        data = f.read(512)
+        # Check for null bytes (common in binary files)
+        has_null = b'\\x00' in data
+        # Try to decode as text
+        try:
+            data.decode('utf-8')
+            is_text = True
+        except:
+            is_text = False
+        print('BINARY' if (has_null or not is_text) else 'TEXT')
+except Exception as e:
+    print(f'ERROR:{{e}}')
+"""
+    
+    result = mpremote_cmd_output('exec', code)
+    
+    if result and 'BINARY' in result:
+        print(f"✗ Binary file detected. Use 'download' to save it locally instead.")
+        print(f"  Example: uv run badge.py download {filepath} ./local_file")
+        return False
+    elif result and 'ERROR:' in result:
+        print(f"✗ {result.strip()}")
+        return False
+    
     print("-" * 60)
     # Use mpremote to cat the file
-    mpremote_cmd('fs', 'cat', f':{filepath}')
-    return True
+    success = mpremote_cmd('fs', 'cat', f':{filepath}')
+    return success
 
 def upload_file(local_path, remote_path, recursive=False):
     """Upload a file or directory to the badge"""
@@ -214,16 +243,18 @@ def main():
         print("Powered by mpremote (official MicroPython tool)")
         print("\nUsage:")
         print(f"  {sys.argv[0]} ls [path]                   - List files")
-        print(f"  {sys.argv[0]} cat <file>                  - Read file")
+        print(f"  {sys.argv[0]} cat <file>                  - Read text file")
         print(f"  {sys.argv[0]} download [-r] <remote> <local> - Download file(s)")
         print(f"  {sys.argv[0]} upload [-r] <local> <remote>   - Upload file(s)")
         print(f"  {sys.argv[0]} rm <file>                   - Delete file")
         print("\nOptions:")
         print(f"  -r, --recursive   Recursively copy directories")
         print("\nExamples:")
+        print(f"  {sys.argv[0]} cat /main.py                       # View text file")
         print(f"  {sys.argv[0]} download '/apps/*.py' ./files/       # Glob patterns")
         print(f"  {sys.argv[0]} download -r /apps ./local_apps/       # Recursive directory")
         print(f"  {sys.argv[0]} upload -r ./my_app /apps/my_app/      # Upload directory")
+        print("\nNote: 'cat' only works with text files. For binary files, use 'download'.")
         return 1
     
     command = sys.argv[1]
