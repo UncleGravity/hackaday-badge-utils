@@ -7,6 +7,8 @@ Uses mpremote (official MicroPython tool) for reliable file operations
 import sys
 import os
 import subprocess
+import fnmatch
+import json
 
 SERIAL_PORT = "/dev/cu.usbmodem2101"
 
@@ -16,6 +18,52 @@ def mpremote_cmd(*args):
     cmd = ['mpremote', 'connect', SERIAL_PORT, 'resume'] + list(args)
     result = subprocess.run(cmd, capture_output=False)
     return result.returncode == 0
+
+def mpremote_cmd_output(*args):
+    """Run an mpremote command and capture output"""
+    cmd = ['mpremote', 'connect', SERIAL_PORT, 'resume'] + list(args)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.stdout if result.returncode == 0 else None
+
+def expand_remote_glob(pattern):
+    """Expand a glob pattern on the remote device"""
+    if '*' not in pattern and '?' not in pattern:
+        return [pattern]
+    
+    # Split path into directory and pattern
+    if '/' in pattern:
+        directory = pattern.rsplit('/', 1)[0]
+        file_pattern = pattern.rsplit('/', 1)[1]
+    else:
+        directory = '/'
+        file_pattern = pattern
+    
+    # Get list of files in directory
+    code = f"""
+import os
+try:
+    files = os.listdir('{directory}')
+    for f in files:
+        print(f)
+except:
+    pass
+"""
+    
+    output = mpremote_cmd_output('exec', code)
+    if not output:
+        return []
+    
+    # Filter files matching the pattern
+    matching_files = []
+    for line in output.strip().split('\n'):
+        filename = line.strip()
+        if filename and fnmatch.fnmatch(filename, file_pattern):
+            if directory == '/':
+                matching_files.append(f'/{filename}')
+            else:
+                matching_files.append(f'{directory}/{filename}')
+    
+    return matching_files
 
 def list_files(path='/'):
     """List files in a directory on the badge"""
@@ -49,7 +97,11 @@ def upload_file(local_path, remote_path):
     return success
 
 def download_file(remote_path, local_path):
-    """Download a file from the badge"""
+    """Download a file or files from the badge (supports globs)"""
+    # Check if remote_path contains wildcards
+    if '*' in remote_path or '?' in remote_path:
+        return download_glob(remote_path, local_path)
+    
     print(f"Downloading: {remote_path} -> {local_path}")
     success = mpremote_cmd('fs', 'cp', f':{remote_path}', local_path)
     
@@ -66,6 +118,44 @@ def download_file(remote_path, local_path):
         print("✗ Download failed!")
     
     return success
+
+def download_glob(remote_pattern, local_dir):
+    """Download multiple files matching a glob pattern"""
+    print(f"Expanding pattern: {remote_pattern}")
+    matching_files = expand_remote_glob(remote_pattern)
+    
+    if not matching_files:
+        print(f"✗ No files match pattern: {remote_pattern}")
+        return False
+    
+    print(f"Found {len(matching_files)} matching files")
+    
+    # Ensure local directory exists
+    if not os.path.exists(local_dir):
+        os.makedirs(local_dir)
+    
+    success_count = 0
+    fail_count = 0
+    
+    for remote_file in matching_files:
+        filename = os.path.basename(remote_file)
+        local_file = os.path.join(local_dir, filename)
+        
+        print(f"  Downloading: {remote_file} -> {local_file}")
+        if mpremote_cmd('fs', 'cp', f':{remote_file}', local_file):
+            success_count += 1
+            if os.path.exists(local_file):
+                size = os.path.getsize(local_file)
+                print(f"    ✓ {size} bytes")
+        else:
+            fail_count += 1
+            print(f"    ✗ Failed")
+    
+    print(f"\n✓ Downloaded {success_count}/{len(matching_files)} files")
+    if fail_count > 0:
+        print(f"✗ {fail_count} files failed")
+    
+    return fail_count == 0
 
 def delete_file(filepath):
     """Delete a file from the badge"""
@@ -86,9 +176,12 @@ def main():
         print("\nUsage:")
         print(f"  {sys.argv[0]} ls [path]                - List files")
         print(f"  {sys.argv[0]} cat <file>               - Read file")
-        print(f"  {sys.argv[0]} download <remote> <local> - Download file")
+        print(f"  {sys.argv[0]} download <remote> <local> - Download file(s)")
         print(f"  {sys.argv[0]} upload <local> <remote>  - Upload file")
         print(f"  {sys.argv[0]} rm <file>                - Delete file")
+        print("\nGlob patterns supported for download:")
+        print(f"  {sys.argv[0]} download '/apps/*.py' ./files/")
+        print(f"  {sys.argv[0]} download '/apps/user?.py' ./files/")
         return 1
     
     command = sys.argv[1]

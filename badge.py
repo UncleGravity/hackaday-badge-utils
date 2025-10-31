@@ -35,6 +35,7 @@ Examples:
   uv run badge.py ls /apps
   uv run badge.py cat /main.py
   uv run badge.py download /apps/chat.py chat.py
+  uv run badge.py download '/apps/*.py' ./files/
   uv run badge.py upload myapp.py /apps/userA.py
 
 Quick Info:

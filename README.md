@@ -1,12 +1,19 @@
 # Supercon 2025 Badge Tools
 
-Python scripts for interacting with the Hackaday Supercon 2025 Badge (ESP32-S3 with MicroPython).
+Python utilities for interacting with the Hackaday Supercon 2025 Badge (ESP32-S3 with MicroPython).
+
+Built with `mpremote` for reliable file operations that won't disrupt your badge display.
 
 ## Setup
 
 Install dependencies with uv:
 ```bash
 uv sync
+```
+
+Or install dependencies manually:
+```bash
+pip install pyserial mpremote
 ```
 
 ## Quick Start (Unified Tool)
@@ -77,7 +84,13 @@ uv run badge_repl.py
 - Direct access to badge hardware
 
 ### 4. badge_file_manager.py - File Management
-Upload, download, and manage files on the badge.
+Upload, download, and manage files on the badge using mpremote (official MicroPython tool).
+
+**Features:**
+- Uses `mpremote` for reliable file operations
+- Won't reset the device or turn off the display
+- **Supports glob patterns** for batch downloads (`*`, `?` wildcards)
+- Automatic directory creation for downloads
 
 ```bash
 # List files in root
@@ -89,7 +102,14 @@ uv run badge_file_manager.py ls /apps
 # Read a file
 uv run badge_file_manager.py cat /main.py
 
-# Upload a file
+# Download a single file from badge
+uv run badge_file_manager.py download /apps/chat.py chat.py
+
+# Download multiple files using glob patterns
+uv run badge_file_manager.py download '/apps/*.py' ./files/
+uv run badge_file_manager.py download '/apps/user?.py' ./files/
+
+# Upload a file to badge
 uv run badge_file_manager.py upload local_file.py /remote_file.py
 
 # Delete a file
@@ -142,6 +162,12 @@ uv run badge.py ls /apps
 
 # Read the main.py file
 uv run badge.py cat /main.py
+
+# Download all apps from the badge
+uv run badge.py download '/apps/*.py' ./files/
+
+# Download specific user apps only
+uv run badge.py download '/apps/user?.py' ./files/
 
 # Create a custom app
 # 1. Write your app locally as myapp.py
