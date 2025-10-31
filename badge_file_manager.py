@@ -8,7 +8,6 @@ import sys
 import os
 import subprocess
 import fnmatch
-import json
 
 SERIAL_PORT = "/dev/cu.usbmodem2101"
 
@@ -38,26 +37,44 @@ def expand_remote_glob(pattern):
         directory = '/'
         file_pattern = pattern
     
-    # Get list of files in directory
+    # Validate directory doesn't contain dangerous characters
+    if "'" in directory or '"' in directory or '\n' in directory:
+        print(f"✗ Invalid directory path: {directory}")
+        return []
+    
+    # Normalize empty directory to root
+    if not directory:
+        directory = '/'
+    
+    # Get list of files in directory using safe string escaping
+    # Using repr() to safely escape the directory path
     code = f"""
 import os
 try:
-    files = os.listdir('{directory}')
+    files = os.listdir({repr(directory)})
     for f in files:
         print(f)
-except:
-    pass
+except Exception as e:
+    print(f"ERROR: {{e}}")
 """
     
     output = mpremote_cmd_output('exec', code)
     if not output:
         return []
     
+    # Check for errors in output
+    if output.strip().startswith('ERROR:'):
+        print(f"✗ {output.strip()}")
+        return []
+    
     # Filter files matching the pattern
     matching_files = []
     for line in output.strip().split('\n'):
         filename = line.strip()
-        if filename and fnmatch.fnmatch(filename, file_pattern):
+        # Skip empty lines and list comprehension artifacts
+        if not filename or filename.startswith('[') or filename.startswith("'"):
+            continue
+        if fnmatch.fnmatch(filename, file_pattern):
             if directory == '/':
                 matching_files.append(f'/{filename}')
             else:
